@@ -70,6 +70,7 @@ const PUT_route = (pool) => new Object({
       client.query('select id, bloom from bloombase where base=$1 and id != $2', [base, identifier], function (err, result) {
 
         if (err) {
+          done();
           return console.error('error running query', err);
         }
 
@@ -88,14 +89,15 @@ const PUT_route = (pool) => new Object({
 
         let newContactsBloom = Filter.create(Math.max(16, possibleMatches.length), 0.000000001);
 
-        console.log('possible matches: ' + JSON.stringify(possibleMatches));
-
         possibleMatches.forEach(id =>  newContactsBloom.insert(id));
 
         client.query('insert into bloombase (id, base, bloom) values($1, $2, $3) on conflict (id,base) do update set bloom=$3', [identifier, base, JSON.stringify(contactsHash)], function (err, result) {
+          done();
+
           if (err) {
             return console.error('error running insert query', err);
           }
+
 
           let response = newContactsBloom.toObject();
 

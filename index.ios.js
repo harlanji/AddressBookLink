@@ -14,11 +14,13 @@ import {
   Alert,
   ListView,
   Switch,
-  AsyncStorage
+  AsyncStorage,
+  Linking,
+  Navigator
 } from 'react-native';
 
 import {
-  StackNavigator,
+  StackNavigator, NavigationActions
 } from 'react-navigation';
 
 const Filter = require('bloom-filter');
@@ -41,6 +43,14 @@ class MainScreen extends Component {
     //     ),
     // }),
   };
+
+  componentWillMount () {
+    Contacts.checkPermission((err, permission) => {
+      if (permission === 'authorized') {
+        this.gotoAddressBook();
+      }
+    });
+  }
 
 
   render() {
@@ -66,7 +76,7 @@ class MainScreen extends Component {
         })
       }
       if (permission === 'authorized') {
-        this.props.navigation.navigate('AddressBook');
+        this.gotoAddressBook();
       }
       if (permission === 'denied') {
         // x.x
@@ -74,6 +84,16 @@ class MainScreen extends Component {
     })
 
 
+  }
+
+  gotoAddressBook () {
+    const resetAction = NavigationActions.reset({
+      index: 0,
+      actions: [
+        NavigationActions.navigate({routeName: 'AddressBook', params: {appId: 'test'}})
+      ]
+    })
+    this.props.navigation.dispatch(resetAction);
   }
 }
 
@@ -83,13 +103,14 @@ AppRegistry.registerComponent('MainScreen', () => MainScreen);
 class AddressBookScreen extends Component {
 
   static navigationOptions = {
-    title: ({state}) => `AddressBook.Link`,
+    title: ({state}) => `AddressBook.Link / ${state.params.appId}`,
   }
 
-  constructor() {
-    super();
+  constructor(props) {
+    super(props);
 
     this.state = {
+      appId: this.props.navigation.state.params.appId,
       disabledContactIds: [],
       matchingContacts: [],
       shouldSync: false,
@@ -109,7 +130,9 @@ class AddressBookScreen extends Component {
         <ListView dataSource={this.state.contactsDataSource}
                   renderRow={(rowData) => this.renderContactRow(rowData.contact)}
                   enableEmptySections={true}/>
-        <Button title="Sync" disabled={!this.state.shouldSync} onPress={() => this.onSyncPressed() }/>
+        <View style={styles.syncPanel}>
+          <Button style={styles.syncButton} title="Sync" disabled={!this.state.shouldSync} onPress={() => this.onSyncPressed() }/>
+        </View>
       </View>
 
     );
@@ -117,7 +140,7 @@ class AddressBookScreen extends Component {
 
   renderContactRow(contact) {
     return (
-      <View style={{flex: 1, flexDirection: 'row'}}>
+      <View style={{flex: 1, flexDirection: 'row'}} key={'contact-row-' + contact.recordID}>
         <Switch value={this.isContactSelected(contact)}
                 onValueChange={(enabled) => this.onContactSwitched(contact, enabled)}/>
         <View style={{flex: 1, flexDirection: 'column'}}>
@@ -126,8 +149,8 @@ class AddressBookScreen extends Component {
             <Text>{this.state.matchingContacts.map(match => match.recordID).indexOf(contact.recordID) > -1 ? ' ** match' : ''}</Text>
           </View>
           <View style={{flex: 1, flexDirection: 'column'}}>
-            {contact.phoneNumbers.map((p) => (
-              <View style={{flex: 1, flexDirection: 'row'}}>
+            {contact.phoneNumbers.map((p, i) => (
+              <View style={{flex: 1, flexDirection: 'row'}} key={'contact-num-' + contact.recordID + '-' + i}>
                 <Text style={styles.phoneLabel}>{p.label}</Text>
                 <Text style={styles.phoneNumber}>{p.number}</Text>
               </View>))}
@@ -171,7 +194,8 @@ class AddressBookScreen extends Component {
     let ep = 'http://localhost:3000';
     //let phone = '5554787672'; // Daniel
     let phone = '5555655555'; // Fake H
-    let uri = `${ep}/db/test/${phone}`;
+    let appId = this.state.appId;
+    let uri = `${ep}/db/${appId}/${phone}`;
 
     let contacts = this.state.contacts;
 
@@ -179,7 +203,7 @@ class AddressBookScreen extends Component {
 
     let phoneNumbers = [];
 
-    contacts.forEach(c => {c.phoneNumbers.forEach(pn => {
+    contacts.filter(c => this.state.disabledContactIds.indexOf(c.recordID) == -1).forEach(c => {c.phoneNumbers.forEach(pn => {
       let normalized = pn.number.split('').filter(char => char >= '0' && char <= '9').join('');
       phoneNumbers.push(normalized);
     })});
@@ -345,6 +369,14 @@ const styles = StyleSheet.create({
   },
   phoneNumber: {
     fontSize: 16
+  },
+
+  syncPanel: {
+    padding: 4
+  },
+
+  syncButton: {
+    fontSize: 32,
   }
 });
 
@@ -356,10 +388,10 @@ const App = StackNavigator({
     screen: MainScreen,
   },
   AddressBook: {
-    path: 'address-book',
+    path: 'match/:appId',
     screen: AddressBookScreen,
-  },
-});
+  }
+}, {containerOptions: {URIPrefix: 'https://addressbook.link/v0/'}});
 
 AppRegistry.registerComponent('AddressBookLink', () => App);
 
