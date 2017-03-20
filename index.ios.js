@@ -21,6 +21,7 @@ import {
   StackNavigator,
 } from 'react-navigation';
 
+const Filter = require('bloom-filter');
 const Contacts = require('react-native-contacts');
 
 class MainScreen extends Component {
@@ -90,6 +91,7 @@ class AddressBookScreen extends Component {
 
     this.state = {
       disabledContactIds: [],
+      matchingContacts: [],
       shouldSync: false,
       contactsDataSource: AddressBookScreen.ds.cloneWithRows([])
     };
@@ -98,6 +100,7 @@ class AddressBookScreen extends Component {
   componentWillMount() {
     this.fetchContacts().done();
     this.fetchDisabled().done();
+    this.fetchPossibleMatches().done();
   }
 
   render() {
@@ -120,6 +123,7 @@ class AddressBookScreen extends Component {
         <View style={{flex: 1, flexDirection: 'column'}}>
           <View style={{flex: 1, flexDirection: 'row'}}>
             <Text style={styles.displayName}>{contact.givenName + ' ' + contact.familyName}</Text>
+            <Text>{this.state.matchingContacts.map(match => match.recordID).indexOf(contact.recordID) > -1 ? ' ** match' : ''}</Text>
           </View>
           <View style={{flex: 1, flexDirection: 'column'}}>
             {contact.phoneNumbers.map((p) => (
@@ -127,7 +131,7 @@ class AddressBookScreen extends Component {
                 <Text style={styles.phoneLabel}>{p.label}</Text>
                 <Text style={styles.phoneNumber}>{p.number}</Text>
               </View>))}
-            </View>
+          </View>
         </View>
       </View>
 
@@ -164,7 +168,68 @@ class AddressBookScreen extends Component {
   onSyncPressed() {
     //this.props.navigation.goBack(null);
 
-    this.setState({shouldSync: false});
+    let ep = 'http://localhost:3000';
+    //let phone = '5554787672'; // Daniel
+    let phone = '5555655555'; // Fake H
+    let uri = `${ep}/db/test/${phone}`;
+
+    let contacts = this.state.contacts;
+
+
+
+    let phoneNumbers = [];
+
+    contacts.forEach(c => {c.phoneNumbers.forEach(pn => {
+      let normalized = pn.number.split('').filter(char => char >= '0' && char <= '9').join('');
+      phoneNumbers.push(normalized);
+    })});
+
+    let n = Math.pow(2, Math.ceil(Math.log2(phoneNumbers.length)));
+    console.log("bloom n=" + n + " for len = " + phoneNumbers.length);
+
+    let contactsBloom = Filter.create(n, 0.0000000001);
+
+    phoneNumbers.forEach(p => {contactsBloom.insert(p)});
+
+    let contactsHash = contactsBloom.toObject();
+
+
+
+    return fetch(uri, {
+      method: 'PUT',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(contactsHash)
+    }).then((response) => {
+
+      response.json().then((json) => {
+        var responseBloom = new Filter(json);
+        var matchingContacts = [];
+
+        contacts.forEach(c => {c.phoneNumbers.forEach(pn => {
+          let normalized = pn.number.split('').filter(char => char >= '0' && char <= '9').join('');
+
+          if (responseBloom.contains(normalized)) {
+            matchingContacts.push(c);
+            console.log("matchingContacts: " + JSON.stringify(pn.number));
+          }
+        })});
+
+        this.storePossibleMatches({matchingContacts});
+
+        this.setState({matchingContacts, shouldSync: false});
+
+      });
+
+
+    })
+    .catch((error) => {
+      console.error(error);
+    });
+
+
   }
 
   // -- model
@@ -177,7 +242,7 @@ class AddressBookScreen extends Component {
       }
       let dsRows = contacts.map((contact) => new Object({contact, 'key': contact.recordID}));
 
-      this.setState({contactsDataSource: AddressBookScreen.ds.cloneWithRows(dsRows)});
+      this.setState({contacts, contactsDataSource: AddressBookScreen.ds.cloneWithRows(dsRows)});
     });
   }
 
@@ -196,8 +261,39 @@ class AddressBookScreen extends Component {
     }
   }
 
-  async storeDisabled (state) {
-    if (!state) { state = this.state; }
+  async fetchPossibleMatches() {
+    try {
+      let disabledContactIdsP = AsyncStorage.getItem('@AddressBookScreen:possibleMatches')
+        .then((json) => json ? JSON.parse(json) : [])
+        .then((matchingContacts) => {
+          this.setState({matchingContacts});
+          return matchingContacts;
+        });
+
+      return disabledContactIdsP;
+    } catch (error) {
+      Alert.alert('error loading disable contacts: ' + error);
+    }
+  }
+
+  async storePossibleMatches (state) {
+    if (!state) {
+      state = this.state;
+    }
+    try {
+      let json = JSON.stringify(state.matchingContacts);
+
+      return AsyncStorage.setItem('@AddressBookScreen:possibleMatches', json);
+    } catch (error) {
+      // Error saving data
+      Alert.alert('error storing matching contacts: ' + error);
+    }
+  }
+
+  async storeDisabled(state) {
+    if (!state) {
+      state = this.state;
+    }
     try {
       let json = JSON.stringify(state.disabledContactIds);
 
@@ -238,7 +334,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 32
   },
-
 
 
   displayName: {
