@@ -23,8 +23,25 @@ import {
   StackNavigator, NavigationActions
 } from 'react-navigation';
 
+import DeviceInfo from 'react-native-device-info'
+
 const Filter = require('bloom-filter');
 const Contacts = require('react-native-contacts');
+const Auth0Lock = require('react-native-lock');
+
+const Phone = require('phone');
+
+function parsePhoneNumber (phoneNumber) {
+  let parsed = Phone(phoneNumber);
+
+  let normalized = (parsed[0] || phoneNumber).split('').filter(char => char >= '0' && char <= '9').join('');
+
+  return normalized;
+}
+
+function isSimulator () {
+  return DeviceInfo.getModel() === "Simulator";
+}
 
 class MainScreen extends Component {
 
@@ -87,13 +104,57 @@ class MainScreen extends Component {
   }
 
   gotoAddressBook () {
+
+
+    //
+
+    //Alert.alert('login!');
+
+    console.log('login');
+
+    if (isSimulator()) {
+      let profile = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155655555'}};
+
+      this.continueWithProfile(profile);
+    } else {
+      var lock = new Auth0Lock({clientId: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', domain: 'analogzen.auth0.com'});
+
+      // todo -- cache login
+
+      lock.show({connections: ['sms']}, (err, profile, token) => {
+        if (err) {
+          Alert.alert('login err :(' + err)
+
+          console.log(err);
+          return;
+        }
+        // Authentication worked!
+        console.log('Logged in with Auth0!: ' + JSON.stringify(profile));
+
+        // https://auth0.com/docs/user-profile/user-profile-structure
+        // phone_number, phone_verified
+
+        this.continueWithProfile(profile);
+      });
+    }
+
+
+  }
+
+  continueWithProfile (profile) {
+    let appId = profile.extraInfo.clientID;
+    let phoneNumber = profile.extraInfo.phone_number;
+
+    let identifier = parsePhoneNumber(phoneNumber);
+
     const resetAction = NavigationActions.reset({
       index: 0,
       actions: [
-        NavigationActions.navigate({routeName: 'AddressBook', params: {appId: 'test'}})
+        NavigationActions.navigate({routeName: 'AddressBook', params: {appId, identifier, phoneNumber: identifier}})
       ]
     })
     this.props.navigation.dispatch(resetAction);
+
   }
 }
 
@@ -103,7 +164,7 @@ AppRegistry.registerComponent('MainScreen', () => MainScreen);
 class AddressBookScreen extends Component {
 
   static navigationOptions = {
-    title: ({state}) => `AddressBook.Link / ${state.params.appId}`,
+    title: ({state}) => `${state.params.phoneNumber}`,
   }
 
   constructor(props) {
@@ -111,9 +172,10 @@ class AddressBookScreen extends Component {
 
     this.state = {
       appId: this.props.navigation.state.params.appId,
+      phoneNumber: this.props.navigation.state.params.phoneNumber,
       disabledContactIds: [],
       matchingContacts: [],
-      shouldSync: false,
+      shouldSync: true,
       contactsDataSource: AddressBookScreen.ds.cloneWithRows([])
     };
   }
@@ -131,7 +193,7 @@ class AddressBookScreen extends Component {
                   renderRow={(rowData) => this.renderContactRow(rowData.contact)}
                   enableEmptySections={true}/>
         <View style={styles.syncPanel}>
-          <Button style={styles.syncButton} title="Sync" disabled={!this.state.shouldSync} onPress={() => this.onSyncPressed() }/>
+          <Button style={styles.syncButton} title="Sync" onPress={() => this.onSyncPressed() }/>
         </View>
       </View>
 
@@ -191,20 +253,24 @@ class AddressBookScreen extends Component {
   onSyncPressed() {
     //this.props.navigation.goBack(null);
 
-    let ep = 'http://localhost:3000';
+    let ep = 'https://addressbooklink.com/api';
     //let phone = '5554787672'; // Daniel
-    let phone = '5555655555'; // Fake H
+    let phone = this.state.phoneNumber; // Fake H
     let appId = this.state.appId;
     let uri = `${ep}/db/${appId}/${phone}`;
 
+
+    console.log('sync uri: ' + uri);
+
     let contacts = this.state.contacts;
+
 
 
 
     let phoneNumbers = [];
 
     contacts.filter(c => this.state.disabledContactIds.indexOf(c.recordID) == -1).forEach(c => {c.phoneNumbers.forEach(pn => {
-      let normalized = pn.number.split('').filter(char => char >= '0' && char <= '9').join('');
+      let normalized = parsePhoneNumber(pn.number);
       phoneNumbers.push(normalized);
     })});
 
@@ -233,7 +299,7 @@ class AddressBookScreen extends Component {
         var matchingContacts = [];
 
         contacts.forEach(c => {c.phoneNumbers.forEach(pn => {
-          let normalized = pn.number.split('').filter(char => char >= '0' && char <= '9').join('');
+          let normalized = parsePhoneNumber(pn.number);
 
           if (responseBloom.contains(normalized)) {
             matchingContacts.push(c);
@@ -244,6 +310,8 @@ class AddressBookScreen extends Component {
         this.storePossibleMatches({matchingContacts});
 
         this.setState({matchingContacts, shouldSync: false});
+
+        Alert.alert('Contacts synced successfully. Any deselected contacts have been removed.');
 
       });
 
@@ -379,6 +447,8 @@ const styles = StyleSheet.create({
     fontSize: 32,
   }
 });
+
+
 
 
 AppRegistry.registerComponent('AddressBookScreen', () => AddressBookScreen);
