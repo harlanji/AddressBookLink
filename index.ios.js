@@ -391,7 +391,7 @@ const App = StackNavigator({
     path: 'match/:appId',
     screen: AddressBookScreen,
   }
-}, {containerOptions: {URIPrefix: 'https://addressbook.link/v0/'}});
+  }, {containerOptions: {URIPrefix: 'https://addressbook.link/v0/'}});
 
 AppRegistry.registerComponent('AddressBookLink', () => App);
 

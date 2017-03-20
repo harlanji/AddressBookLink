@@ -6,6 +6,7 @@
 	<array>
 		<string>applinks:addressbook.link</string>
 		<string>applinks:addressbooklink.com</string>
+		<string>applinks:addressbook.link:3000</string>
 	</array>
 	<key>com.apple.developer.default-data-protection</key>
 	<string>NSFileProtectionComplete</string>

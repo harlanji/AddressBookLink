@@ -22,17 +22,30 @@ export default function main() {
 
 
   const server = new Hapi.Server();
-  server.connection({port: 3000, host: '0.0.0.0'});
 
-  server.route(PUT_route(pool));
-  server.route(GET_route(pool));
+  server.register(require('inert'), (err) => {
 
-
-  server.start((err) => {
     if (err) {
       throw err;
     }
-    console.log(`Server running at: ${server.info.uri}`);
+
+    server.connection({port: 3000, host: '0.0.0.0'});
+
+
+
+
+    server.route(PUT_route(pool));
+    server.route(GET_route(pool));
+    server.route(APPLE_SITE_ASSOC_route)
+
+
+    server.start((err) => {
+      if (err) {
+        throw err;
+      }
+      console.log(`Server running at: ${server.info.uri}`);
+    });
+
   });
 }
 
@@ -51,6 +64,14 @@ const config = {
   idleTimeoutMillis: 30000, // how long a client is allowed to remain idle before being closed
 };
 
+const APPLE_SITE_ASSOC_route = {
+  method: 'GET',
+  path: '/apple-app-site-association',
+  handler: function (request, reply) {
+    console.log('APPLE_SITE_ASSOC_route');
+    reply.file('./apple-app-site-association');
+  }
+};
 
 const PUT_route = (pool) => new Object({
   method: 'PUT',

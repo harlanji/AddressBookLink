@@ -1,0 +1,10 @@
+{
+    "applinks": {
+        "apps": [],
+            {
+                "appID": "*.link.addressbook.AddressBookLink",
+                "paths": [ "*" ]
+            }
+        ]
+    }
+}

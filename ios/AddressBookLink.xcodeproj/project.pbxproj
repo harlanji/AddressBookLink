@@ -1053,6 +1053,7 @@
 					"-ObjC",
 					"-lc++",
 				);
+				PRODUCT_BUNDLE_IDENTIFIER = link.addressbook.AddressBookLink;
 				PRODUCT_NAME = AddressBookLink;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
@@ -1072,6 +1073,7 @@
 					"-ObjC",
 					"-lc++",
 				);
+				PRODUCT_BUNDLE_IDENTIFIER = link.addressbook.AddressBookLink;
 				PRODUCT_NAME = AddressBookLink;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
