@@ -154,7 +154,7 @@ class MainScreen extends Component {
     console.log('login');
 
     if (true || isSimulator()) {
-      let profile = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155651452'}};
+      let profile = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155655555'}};
 
       this.continueWithProfile(profile);
     } else {
@@ -191,7 +191,7 @@ class MainScreen extends Component {
     const resetAction = NavigationActions.reset({
       index: 0,
       actions: [
-        NavigationActions.navigate({routeName: 'AddressBook', params: {appId, identifier, phoneNumber: identifier}})
+        NavigationActions.navigate({routeName: 'AddressBook', params: {appId, identifier, phoneNumber: phoneNumber}})
       ]
     })
     this.props.navigation.dispatch(resetAction);
@@ -205,7 +205,7 @@ AppRegistry.registerComponent('MainScreen', () => MainScreen);
 class AddressBookScreen extends Component {
 
   static navigationOptions = {
-    title: ({state}) => `${state.params.phoneNumber}`,
+    title: ({state}) => `${state.params.identifier}`,
   }
 
   constructor(props) {
@@ -214,6 +214,7 @@ class AddressBookScreen extends Component {
     this.state = {
       appId: this.props.navigation.state.params.appId,
       phoneNumber: this.props.navigation.state.params.phoneNumber,
+      identifier: this.props.navigation.state.params.identifier,
       disabledContactIds: [],
       matchingContacts: [],
       shouldSync: true,
@@ -277,18 +278,25 @@ class AddressBookScreen extends Component {
   // -- actions
 
   onContactSwitched(contact, enabled) {
-    var newState = this.state; //{disabledContactIds: this.state.disabledContactIds};
+    let disabledContactIds = this.state.disabledContactIds.slice(0);
 
     if (!enabled) {
-      newState.disabledContactIds.push(contact.recordID);
+      disabledContactIds.push(contact.recordID);
     } else {
-      newState.disabledContactIds = newState.disabledContactIds.filter((cid) => cid != contact.recordID);
+      disabledContactIds = disabledContactIds.filter((cid) => cid != contact.recordID);
     }
-    newState.shouldSync = true;
 
-    this.storeDisabled(newState).done();
 
-    this.setState(newState);
+    this.setState({disabledContactIds, shouldSync: true});
+
+    setTimeout(function () {
+      console.log('storeDisabled');
+      console.log(disabledContactIds);
+      this.storeDisabled(disabledContactIds).then(() => {
+        console.log('storeDisabled done!');
+
+      }).done();
+    }, 0);
   }
 
   onSyncPressed() {
@@ -296,9 +304,9 @@ class AddressBookScreen extends Component {
 
     let ep = 'https://addressbooklink.com/api';
     //let phone = '5554787672'; // Daniel
-    let phone = this.state.phoneNumber; // Fake H
+    let identifier = this.state.identifier;
     let appId = this.state.appId;
-    let uri = `${ep}/db/${appId}/${phone}`;
+    let uri = `${ep}/db/${appId}/${identifier}`;
 
 
     console.log('sync uri: ' + uri);
@@ -381,7 +389,7 @@ class AddressBookScreen extends Component {
 
   async fetchDisabled() {
     try {
-      let disabledContactIdsP = AsyncStorage.getItem('@AddressBookScreen:disabledContactIds')
+      let disabledContactIdsP = AsyncStorage.getItem(`@AddressBookScreen:${this.state.appId}:${this.state.identifier}:disabledContactIds`)
         .then((json) => json ? JSON.parse(json) : [])
         .then((disabledContactIds) => {
           this.setState({disabledContactIds});
@@ -396,7 +404,7 @@ class AddressBookScreen extends Component {
 
   async fetchPossibleMatches() {
     try {
-      let disabledContactIdsP = AsyncStorage.getItem('@AddressBookScreen:possibleMatches')
+      let disabledContactIdsP = AsyncStorage.getItem(`@AddressBookScreen:${this.state.appId}:${this.state.identifier}:possibleMatches`)
         .then((json) => json ? JSON.parse(json) : [])
         .then((matchingContacts) => {
           this.setState({matchingContacts});
@@ -416,24 +424,22 @@ class AddressBookScreen extends Component {
     try {
       let json = JSON.stringify(state.matchingContacts);
 
-      return AsyncStorage.setItem('@AddressBookScreen:possibleMatches', json);
+      return AsyncStorage.setItem(`@AddressBookScreen:${state.appId}:${state.identifier}:possibleMatches`, json);
     } catch (error) {
       // Error saving data
       Alert.alert('error storing matching contacts: ' + error);
     }
   }
 
-  async storeDisabled(state) {
-    if (!state) {
-      state = this.state;
-    }
+  async storeDisabled(disabledContactIds) {
     try {
-      let json = JSON.stringify(state.disabledContactIds);
+      let json = JSON.stringify(disabledContactIds);
 
-      return AsyncStorage.setItem('@AddressBookScreen:disabledContactIds', json);
+      return AsyncStorage.setItem(`@AddressBookScreen:${this.state.appId}:${this.state.identifier}:disabledContactIds`, json);
     } catch (error) {
       // Error saving data
-      Alert.alert('error storing disable contacts: ' + error);
+      console.log('error storing disable contacts: ');
+      console.log(error);
     }
   }
 
