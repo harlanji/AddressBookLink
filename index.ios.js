@@ -43,6 +43,47 @@ function isSimulator () {
   return DeviceInfo.getModel() === "Simulator";
 }
 
+
+
+class MatchScreen extends Component {
+
+  static navigationOptions = {
+    title: ({state}) => `AddressBook.Link Matches`,
+  };
+
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      appId: this.props.navigation.state.params.appId,
+      identifier: this.props.navigation.state.params.identifier,
+    };
+  }
+
+
+  render() {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.welcome}>AddressBook.Link</Text>
+        <Text style={styles.instructions}>
+          Welcome to AddressBook.Link
+        </Text>
+        <View style={{flex: 1, flexDirection: 'row'}}>
+          <View style={{flex: 1, flexDirection: 'row'}}>
+            <Text>App ID</Text><Text>{this.state.appId}</Text>
+          </View>
+          <View style={{flex: 1, flexDirection: 'row'}}>
+            <Text>User ID</Text><Text>{this.state.identifier}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+}
+
+AppRegistry.registerComponent('MatchScreen', () => MatchScreen);
+
+
 class MainScreen extends Component {
 
   static navigationOptions = {
@@ -112,8 +153,8 @@ class MainScreen extends Component {
 
     console.log('login');
 
-    if (isSimulator()) {
-      let profile = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155655555'}};
+    if (true || isSimulator()) {
+      let profile = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155651452'}};
 
       this.continueWithProfile(profile);
     } else {
@@ -448,7 +489,10 @@ const styles = StyleSheet.create({
   }
 });
 
-
+Linking.addEventListener('url', function (event) {
+  console.log('Linking::url');
+  console.log(event);
+});
 
 
 AppRegistry.registerComponent('AddressBookScreen', () => AddressBookScreen);
@@ -458,8 +502,12 @@ const App = StackNavigator({
     screen: MainScreen,
   },
   AddressBook: {
-    path: 'match/:appId',
+    path: 'book/:appId/:identifier',
     screen: AddressBookScreen,
+  },
+  Match: {
+    path: 'match/:appId/:identifier',
+    screen: MatchScreen,
   }
   }, {containerOptions: {URIPrefix: 'https://addressbook.link/v0/'}});
 

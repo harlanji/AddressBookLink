@@ -38,7 +38,6 @@
 		2DCD954D1E0B4F2C00145EB5 /* AddressBookLinkTests.m in Sources */ = {isa = PBXBuildFile; fileRef = 00E356F21AD99517003FC87E /* AddressBookLinkTests.m */; };
 		5E9157361DD0AC6A00FF2AA8 /* libRCTAnimation.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5E9157331DD0AC6500FF2AA8 /* libRCTAnimation.a */; };
 		832341BD1AAA6AB300B99B32 /* libRCTText.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 832341B51AAA6A8300B99B32 /* libRCTText.a */; };
-		DCB40C1D1E806731003B9CC3 /* node_modules in Resources */ = {isa = PBXBuildFile; fileRef = DCB40C1C1E806731003B9CC3 /* node_modules */; };
 		DCB40C3F1E808823003B9CC3 /* libRNDeviceInfo.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DCB40C3E1E8087ED003B9CC3 /* libRNDeviceInfo.a */; };
 		DCDC1D071E7E2BD8003B9CC3 /* libRCTContacts.a in Frameworks */ = {isa = PBXBuildFile; fileRef = DCDC1CF01E7E2BB9003B9CC3 /* libRCTContacts.a */; };
 /* End PBXBuildFile section */
@@ -285,7 +284,6 @@
 		832341B01AAA6A8300B99B32 /* RCTText.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = RCTText.xcodeproj; path = "../node_modules/react-native/Libraries/Text/RCTText.xcodeproj"; sourceTree = "<group>"; };
 		A9AE19CA2640F6CD596F2CC0 /* libPods-AddressBookLink.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-AddressBookLink.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D521452B481A4B5CA90656D0 /* A0RNLock.xcodeproj */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = "wrapper.pb-project"; name = A0RNLock.xcodeproj; path = "../node_modules/react-native-lock/ios/A0RNLock.xcodeproj"; sourceTree = "<group>"; };
-		DCB40C1C1E806731003B9CC3 /* node_modules */ = {isa = PBXFileReference; lastKnownFileType = folder; name = node_modules; path = ../node_modules; sourceTree = "<group>"; };
 		DCB40C391E8087ED003B9CC3 /* RNDeviceInfo.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = RNDeviceInfo.xcodeproj; path = "../node_modules/react-native-device-info/RNDeviceInfo.xcodeproj"; sourceTree = "<group>"; };
 		DCDC1CE81E7E2BB9003B9CC3 /* RCTContacts.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = RCTContacts.xcodeproj; path = "../node_modules/react-native-contacts/ios/RCTContacts.xcodeproj"; sourceTree = "<group>"; };
 		DCDE3E6F1E7F70B8003B9CC3 /* AddressBookLink.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = AddressBookLink.entitlements; path = AddressBookLink/AddressBookLink.entitlements; sourceTree = "<group>"; };
@@ -523,7 +521,6 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				DCB40C1C1E806731003B9CC3 /* node_modules */,
 				13B07FAE1A68108700A75B9A /* AddressBookLink */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				00E356EF1AD99517003FC87E /* AddressBookLinkTests */,
@@ -977,7 +974,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
-				DCB40C1D1E806731003B9CC3 /* node_modules in Resources */,
 				13B07FBD1A68108700A75B9A /* LaunchScreen.xib in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1206,6 +1202,15 @@
 				);
 				INFOPLIST_FILE = AddressBookLink/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$PODS_CONFIGURATION_BUILD_DIR/AFNetworking\"",
+					"\"$PODS_CONFIGURATION_BUILD_DIR/Lock\"",
+					"\"$PODS_CONFIGURATION_BUILD_DIR/Masonry\"",
+					"\"$PODS_CONFIGURATION_BUILD_DIR/SimpleKeychain\"",
+					"\"$PODS_CONFIGURATION_BUILD_DIR/TouchIDAuth\"",
+					"$(SRCROOT)/../node_modules/react-native/Libraries",
+				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -1231,6 +1236,15 @@
 				);
 				INFOPLIST_FILE = AddressBookLink/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$PODS_CONFIGURATION_BUILD_DIR/AFNetworking\"",
+					"\"$PODS_CONFIGURATION_BUILD_DIR/Lock\"",
+					"\"$PODS_CONFIGURATION_BUILD_DIR/Masonry\"",
+					"\"$PODS_CONFIGURATION_BUILD_DIR/SimpleKeychain\"",
+					"\"$PODS_CONFIGURATION_BUILD_DIR/TouchIDAuth\"",
+					"$(SRCROOT)/../node_modules/react-native/Libraries",
+				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
