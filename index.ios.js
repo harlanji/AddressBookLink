@@ -48,6 +48,10 @@ function isSimulator () {
   return DeviceInfo.getModel() === "Simulator";
 }
 
+const TEST_MODE = true;
+const TEST_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FuYWxvZ3plbi5hdXRoMC5jb20vIiwic3ViIjoic21zfDU4ZDAxOTI5ODc5ZjE4Mjg4YTdhMGMwNyIsImF1ZCI6InZrTmZvalB3NVBzNzN2bkdiRDhTMVJ4TGxRTTdhZ0djIiwiZXhwIjoxNDkwMzI3NjIzLCJpYXQiOjE0OTAyOTE2MjN9.iqqf4LkNep57rfbsqoywCYvCuiAWL7tmbxLNjthmdDg';
+const TEST_PROFILE = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155651452'}};
+
 
 
 class MatchScreen extends Component {
@@ -108,6 +112,8 @@ class MainScreen extends Component {
   };
 
   componentWillMount () {
+    console.log(`INITIAL URL: ${Linking.getInitialURL()}`);
+
     Contacts.checkPermission((err, permission) => {
       if (permission === 'authorized') {
         this.gotoAddressBook();
@@ -158,10 +164,8 @@ class MainScreen extends Component {
 
     console.log('login');
 
-    if (isSimulator()) {
-      let profile = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155655555'}};
-
-      this.continueWithProfile(profile, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FuYWxvZ3plbi5hdXRoMC5jb20vIiwic3ViIjoic21zfDU4ZDAxOTI5ODc5ZjE4Mjg4YTdhMGMwNyIsImF1ZCI6InZrTmZvalB3NVBzNzN2bkdiRDhTMVJ4TGxRTTdhZ0djIiwiZXhwIjoxNDkwMjYwMzA5LCJpYXQiOjE0OTAyMjQzMDl9.hwnzNBnZsbyJFl49S53bYJq9G-pXnUGsNPYHy3qMJJ0');
+    if (TEST_MODE) {
+      this.continueWithProfile(TEST_PROFILE, TEST_TOKEN);
     } else {
       var lock = new Auth0Lock({clientId: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', domain: 'analogzen.auth0.com'});
 
@@ -198,7 +202,7 @@ class MainScreen extends Component {
       actions: [
         NavigationActions.navigate({routeName: 'AddressBook', params: {appId, identifier, phoneNumber: phoneNumber, authJwt}})
       ]
-    })
+    });
     this.props.navigation.dispatch(resetAction);
 
   }
@@ -216,6 +220,8 @@ class AddressBookScreen extends Component {
   constructor(props) {
     super(props);
 
+    let dsRows = [];
+
     this.state = {
       appId: this.props.navigation.state.params.appId,
       phoneNumber: this.props.navigation.state.params.phoneNumber,
@@ -224,7 +230,8 @@ class AddressBookScreen extends Component {
       disabledContactIds: [],
       matchingContacts: [],
       shouldSync: true,
-      contactsDataSource: AddressBookScreen.ds.cloneWithRows([])
+      dsRows: dsRows,
+      contactsDs: AddressBookScreen.ds.cloneWithRows(dsRows)
     };
   }
 
@@ -237,8 +244,8 @@ class AddressBookScreen extends Component {
   render() {
     return (
       <View style={{flex: 1}}>
-        <ListView dataSource={this.state.contactsDataSource}
-                  renderRow={(rowData) => this.renderContactRow(rowData.contact)}
+        <ListView dataSource={this.state.contactsDs}
+                  renderRow={(rowData) => this.renderContactRow(rowData)}
                   enableEmptySections={true}/>
         <View style={styles.syncPanel}>
           <Button style={styles.syncButton} title="Sync" onPress={() => this.onSyncPressed() }/>
@@ -248,11 +255,12 @@ class AddressBookScreen extends Component {
     );
   }
 
-  renderContactRow(contact) {
+  renderContactRow(rowData) {
+    let contact = rowData.contact;
     return (
       <View style={{flex: 1, flexDirection: 'row'}} key={'contact-row-' + contact.recordID}>
-        <Switch value={this.isContactSelected(contact)}
-                onValueChange={(enabled) => this.onContactSwitched(contact, enabled)}/>
+        <Switch value={rowData.selected}
+                onValueChange={(enabled) => this.onContactSwitched(rowData, enabled)}/>
         <View style={{flex: 1, flexDirection: 'column'}}>
           <View style={{flex: 1, flexDirection: 'row'}}>
             <Text style={styles.displayName}>{contact.givenName + ' ' + contact.familyName}</Text>
@@ -271,38 +279,28 @@ class AddressBookScreen extends Component {
     );
   }
 
-  // -- view model
-
-  isContactSelected(contact) {
-    if (!contact.recordID) {
-      throw new Error("Problematic contact: " + JSON.stringify(contact));
-    }
-
-    return this.state.disabledContactIds.indexOf(contact.recordID) < 0;
-  }
-
   // -- actions
 
-  onContactSwitched(contact, enabled) {
+  onContactSwitched(rowData, enabled) {
+    rowData.selected = enabled; // testing: does this update dsRows OG? settings tate
+
     let disabledContactIds = this.state.disabledContactIds.slice(0);
 
     if (!enabled) {
-      disabledContactIds.push(contact.recordID);
+      disabledContactIds.push(rowData.contact.recordID);
     } else {
-      disabledContactIds = disabledContactIds.filter((cid) => cid != contact.recordID);
+      disabledContactIds = disabledContactIds.filter((cid) => cid != rowData.contact.recordID);
     }
 
+    var contactsDs = AddressBookScreen.ds.cloneWithRows(this.state.dsRows);
+    this.setState({dsRows: this.state.dsRows, contactsDs, shouldSync: true});
 
-    this.setState({disabledContactIds, shouldSync: true});
+    console.log('storeDisabled');
+    console.log(disabledContactIds);
+    this.storeDisabled(disabledContactIds).then(() => {
+      console.log('storeDisabled done!');
 
-    setTimeout(function () {
-      console.log('storeDisabled');
-      console.log(disabledContactIds);
-      this.storeDisabled(disabledContactIds).then(() => {
-        console.log('storeDisabled done!');
-
-      }).done();
-    }, 0);
+    }).done();
   }
 
   onSyncPressed() {
@@ -388,9 +386,10 @@ class AddressBookScreen extends Component {
         Alert.alert("Error getting contacts.");
         return;
       }
-      let dsRows = contacts.map((contact) => new Object({contact, 'key': contact.recordID}));
+      let dsRows = contacts.map((contact) => new Object({contact, 'key': contact.recordID, selected: true})),
+        contactsDs = AddressBookScreen.ds.cloneWithRows(dsRows);
 
-      this.setState({contacts, contactsDataSource: AddressBookScreen.ds.cloneWithRows(dsRows)});
+      this.setState({contacts, contactsDs, dsRows});
     });
   }
 
@@ -452,7 +451,7 @@ class AddressBookScreen extends Component {
 
   // -- extras
 
-  static ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1.recordID !== r2.recordID});
+  static ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1 !== r2.selected});
 }
 
 AppRegistry.registerComponent('AddressBookScreen', () => AddressBookScreen);

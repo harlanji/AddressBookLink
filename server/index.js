@@ -97,7 +97,15 @@ const PUT_route = (pool) => new Object({
       console.log(JSON.stringify(request.payload));
 
 
-      let info = jwt.verify(authJwt, AUTH0_CLIENT_SECRET);
+      let info;
+
+      try {
+        info = jwt.verify(authJwt, AUTH0_CLIENT_SECRET);
+
+      } catch (e) {
+        console.log('failed to verify token.');
+        throw e;
+      }
 
       console.log('jwt info:');
       console.log(JSON.stringify(info));
