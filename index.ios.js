@@ -32,11 +32,16 @@ const Auth0Lock = require('react-native-lock');
 const Phone = require('phone');
 
 function parsePhoneNumber (phoneNumber) {
-  let parsed = Phone(phoneNumber);
+  let digits = phoneNumber.split('').filter(char => char >= '0' && char <= '9').join('');
+  let parsed = Phone(digits);
 
-  let normalized = (parsed[0] || phoneNumber).split('').filter(char => char >= '0' && char <= '9').join('');
+  if (parsed.length == 0) {
+    console.log(`could not parse phone number ${phoneNumber} so normalized to ${digits}.`);
 
-  return normalized;
+    return digits;
+  }
+
+  return parsed[0];
 }
 
 function isSimulator () {
@@ -153,10 +158,10 @@ class MainScreen extends Component {
 
     console.log('login');
 
-    if (true || isSimulator()) {
+    if (isSimulator()) {
       let profile = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155655555'}};
 
-      this.continueWithProfile(profile);
+      this.continueWithProfile(profile, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FuYWxvZ3plbi5hdXRoMC5jb20vIiwic3ViIjoic21zfDU4ZDAxOTI5ODc5ZjE4Mjg4YTdhMGMwNyIsImF1ZCI6InZrTmZvalB3NVBzNzN2bkdiRDhTMVJ4TGxRTTdhZ0djIiwiZXhwIjoxNDkwMjYwMzA5LCJpYXQiOjE0OTAyMjQzMDl9.hwnzNBnZsbyJFl49S53bYJq9G-pXnUGsNPYHy3qMJJ0');
     } else {
       var lock = new Auth0Lock({clientId: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', domain: 'analogzen.auth0.com'});
 
@@ -175,14 +180,14 @@ class MainScreen extends Component {
         // https://auth0.com/docs/user-profile/user-profile-structure
         // phone_number, phone_verified
 
-        this.continueWithProfile(profile);
+        this.continueWithProfile(profile, token.idToken);
       });
     }
 
 
   }
 
-  continueWithProfile (profile) {
+  continueWithProfile (profile, authJwt) {
     let appId = profile.extraInfo.clientID;
     let phoneNumber = profile.extraInfo.phone_number;
 
@@ -191,7 +196,7 @@ class MainScreen extends Component {
     const resetAction = NavigationActions.reset({
       index: 0,
       actions: [
-        NavigationActions.navigate({routeName: 'AddressBook', params: {appId, identifier, phoneNumber: phoneNumber}})
+        NavigationActions.navigate({routeName: 'AddressBook', params: {appId, identifier, phoneNumber: phoneNumber, authJwt}})
       ]
     })
     this.props.navigation.dispatch(resetAction);
@@ -215,6 +220,7 @@ class AddressBookScreen extends Component {
       appId: this.props.navigation.state.params.appId,
       phoneNumber: this.props.navigation.state.params.phoneNumber,
       identifier: this.props.navigation.state.params.identifier,
+      authJwt: this.props.navigation.state.params.authJwt,
       disabledContactIds: [],
       matchingContacts: [],
       shouldSync: true,
@@ -302,7 +308,9 @@ class AddressBookScreen extends Component {
   onSyncPressed() {
     //this.props.navigation.goBack(null);
 
-    let ep = 'https://addressbooklink.com/api';
+    //let ep = 'https://addressbooklink.com/api';
+    let ep = 'http://192.168.3.3:3000';
+
     //let phone = '5554787672'; // Daniel
     let identifier = this.state.identifier;
     let appId = this.state.appId;
@@ -330,9 +338,8 @@ class AddressBookScreen extends Component {
 
     phoneNumbers.forEach(p => {contactsBloom.insert(p)});
 
-    let contactsHash = contactsBloom.toObject();
-
-
+    let contactsHash = contactsBloom.toObject(),
+      authJwt = this.state.authJwt;
 
     return fetch(uri, {
       method: 'PUT',
@@ -340,7 +347,7 @@ class AddressBookScreen extends Component {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(contactsHash)
+      body: JSON.stringify({contactsHash, authJwt})
     }).then((response) => {
 
       response.json().then((json) => {

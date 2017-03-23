@@ -3,6 +3,11 @@
 const pg = require('pg');
 const Hapi = require('hapi');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
+const axios = require('axios');
+const Phone = require('phone');
+
+const AUTH0_CLIENT_SECRET = 'Ytd8voy4YV16UQQvv7-IMxlaSKSZybmAymQHOqmdcoUdV1w8qgsQXPUHU9jSE3qj';
 
 
 // iOS isn't Node friendly but we want to share the code...
@@ -36,7 +41,8 @@ export default function main() {
 
     server.route(PUT_route(pool));
     server.route(GET_route(pool));
-    server.route(APPLE_SITE_ASSOC_route)
+    server.route(HEALTH_route(pool));
+    server.route(APPLE_SITE_ASSOC_route); // here or in nginx? maybe nginx merges.... neato.
 
 
     server.start((err) => {
@@ -77,58 +83,129 @@ const PUT_route = (pool) => new Object({
   method: 'PUT',
   path: '/db/{base}/{identifier}',
   handler: function (request, reply) {
-    let contactsHash = request.payload,
-      base = request.params.base,
-      identifier = request.params.identifier;
+    let {base, identifier} = request.params,
+      {contactsHash,authJwt} = request.payload;
 
-    console.log('put: ' + JSON.stringify(contactsHash));
+    try {
+      // { iss: 'https://analogzen.auth0.com/',
+      // sub: 'sms|58d01929879f18288a7a0c07',
+      //   aud: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc',
+      //   exp: 1490103979,
+      //   iat: 1490067979 }
 
-    pool.connect(function (err, client, done) {
-      if (err) {
-        return console.error('error fetching client from pool', err);
+      console.log(`put base=${base} identifier=${identifier}`);
+      console.log(JSON.stringify(request.payload));
+
+
+      let info = jwt.verify(authJwt, AUTH0_CLIENT_SECRET);
+
+      console.log('jwt info:');
+      console.log(JSON.stringify(info));
+
+
+
+      if (info.exp < (new Date().getTime()/1000) || info.iss != 'https://analogzen.auth0.com/' || info.aud != 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc') {
+        console.log('invalid credentials');
+        throw new Error('invalid credentials');
       }
 
-      client.query('select id, bloom from bloombase where base=$1 and id != $2', [base, identifier], function (err, result) {
+      if (base != info.aud) {
+        console.log('invalid db');
+        throw new Error('invalid db');
+      }
 
-        if (err) {
-          done();
-          return console.error('error running query', err);
+      console.log('checking credentials');
+
+
+      axios({
+        method: 'post',
+        url: info.iss + 'tokeninfo',
+        data: {id_token: authJwt},
+        timeout: 5000
+      }).then((response) => {
+
+        console.log('userinfo response');
+
+
+        let extraInfo = response.data;
+        console.log(JSON.stringify(extraInfo));
+
+
+        // name, picture, nickname, phone_number, phone_verified,  identities, user_id
+
+        let phoneNumber = parsePhoneNumber(extraInfo.phone_number);
+
+        if (identifier != phoneNumber) {
+          console.log('invalid identifier');
+          throw new Error('invalid indentifier');
         }
 
-        let contactsBloom = new Filter(contactsHash);
-
-        let possibleMatchesTo = [], possibleMatchesFrom = [];
-
-        result.rows.forEach(function (r) {
-          if (contactsBloom.contains(r.id)) { possibleMatchesTo.push(r.id); }
-
-          let rowBloom = new Filter(JSON.parse(r.bloom));
-          if (rowBloom.contains(identifier)) { possibleMatchesFrom.push(r.id); }
-        });
-
-        let possibleMatches = [].concat(possibleMatchesTo,possibleMatchesFrom);
-
-        let newContactsBloom = Filter.create(Math.max(16, possibleMatches.length), 0.000000001);
-
-        possibleMatches.forEach(id =>  newContactsBloom.insert(id));
-
-        client.query('insert into bloombase (id, base, bloom) values($1, $2, $3) on conflict (id,base) do update set bloom=$3', [identifier, base, JSON.stringify(contactsHash)], function (err, result) {
-          done();
-
+        pool.connect(function (err, client, done) {
           if (err) {
-            return console.error('error running insert query', err);
+            return console.error('error fetching client from pool', err);
           }
 
+          client.query('select id, bloom from bloombase where base=$1 and id != $2', [base, identifier], function (err, result) {
 
-          let response = newContactsBloom.toObject();
+            if (err) {
+              done();
+              return console.error('error running query', err);
+            }
 
-          console.log('replying: ' + JSON.stringify(response));
+            let contactsBloom = new Filter(contactsHash);
+
+            let possibleMatchesTo = [], possibleMatchesFrom = [];
+
+            result.rows.forEach(function (r) {
+              if (contactsBloom.contains(r.id)) { possibleMatchesTo.push(r.id); }
+
+              let rowBloom = new Filter(JSON.parse(r.bloom));
+              if (rowBloom.contains(identifier)) { possibleMatchesFrom.push(r.id); }
+            });
+
+            let possibleMatches = [].concat(possibleMatchesTo,possibleMatchesFrom);
+
+            let newContactsBloom = Filter.create(Math.max(16, possibleMatches.length), 0.000000001);
+
+            possibleMatches.forEach(id =>  newContactsBloom.insert(id));
+
+            client.query('insert into bloombase (id, base, bloom) values($1, $2, $3) on conflict (id,base) do update set bloom=$3', [identifier, base, JSON.stringify(contactsHash)], function (err, result) {
+              done();
+
+              if (err) {
+                return console.error('error running insert query', err);
+              }
 
 
-          reply(response);
+              let response = newContactsBloom.toObject();
+
+              console.log('replying: ' + JSON.stringify(response));
+
+
+              reply(response);
+            });
+          });
         });
-      });
-    });
+
+        })
+        .catch((error) => {
+          if (error.response) {
+            console.log('userinfo response server error');
+            console.log(error);
+          } else {
+            console.log('userinfo response network error');
+          }
+        })
+
+
+    } catch (e) {
+      reply().code(401);
+      return;
+    }
+
+
+
+
   }
 });
 
@@ -136,9 +213,34 @@ const GET_route = (pool) => new Object({
   method: 'GET',
   path: '/db/{base}/{identifier}',
   handler: function (request, reply) {
-   reply.ok();
+    reply('ok');
   }
 });
 
 
+const HEALTH_route = (pool) => new Object({
+  method: 'GET',
+  path: '/health',
+  handler: function (request, reply) {
+    reply('ok');
+  }
+});
+
 main();
+
+
+
+
+
+function parsePhoneNumber (phoneNumber) {
+  let digits = phoneNumber.split('').filter(char => char >= '0' && char <= '9').join('');
+  let parsed = Phone(digits);
+
+  if (parsed.length == 0) {
+    console.log(`could not parse phone number ${phoneNumber} so normalized to ${digits}.`);
+
+    return digits;
+  }
+
+  return parsed[0];
+}
