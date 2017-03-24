@@ -53,46 +53,6 @@ const TEST_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2F
 const TEST_PROFILE = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155651452'}};
 
 
-
-class MatchScreen extends Component {
-
-  static navigationOptions = {
-    title: ({state}) => `AddressBook.Link Matches`,
-  };
-
-  constructor(props) {
-    super(props);
-
-    this.state = {
-      appId: this.props.navigation.state.params.appId,
-      identifier: this.props.navigation.state.params.identifier,
-    };
-  }
-
-
-  render() {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.welcome}>AddressBook.Link</Text>
-        <Text style={styles.instructions}>
-          Welcome to AddressBook.Link
-        </Text>
-        <View style={{flex: 1, flexDirection: 'row'}}>
-          <View style={{flex: 1, flexDirection: 'row'}}>
-            <Text>App ID</Text><Text>{this.state.appId}</Text>
-          </View>
-          <View style={{flex: 1, flexDirection: 'row'}}>
-            <Text>User ID</Text><Text>{this.state.identifier}</Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
-}
-
-AppRegistry.registerComponent('MatchScreen', () => MatchScreen);
-
-
 class MainScreen extends Component {
 
   static navigationOptions = {
@@ -111,17 +71,6 @@ class MainScreen extends Component {
     // }),
   };
 
-  componentWillMount () {
-    console.log(`INITIAL URL: ${Linking.getInitialURL()}`);
-
-    Contacts.checkPermission((err, permission) => {
-      if (permission === 'authorized') {
-        this.gotoAddressBook();
-      }
-    });
-  }
-
-
   render() {
     return (
       <View style={styles.container}>
@@ -135,77 +84,90 @@ class MainScreen extends Component {
   }
 
   onEnablePressed() {
-    Contacts.checkPermission((err, permission) => {
-      // Contacts.PERMISSION_AUTHORIZED || Contacts.PERMISSION_UNDEFINED || Contacts.PERMISSION_DENIED
-      if (permission === 'undefined') {
-        Contacts.requestPermission((err, permission) => {
-          if (permission == 'authorized') {
-            this.onEnablePressed();
-          }
-        })
-      }
-      if (permission === 'authorized') {
-        this.gotoAddressBook();
-      }
-      if (permission === 'denied') {
-        // x.x
-      }
-    })
-
-
+    this.gotoAddressBook();
   }
 
   gotoAddressBook () {
-
-
-    //
-
-    //Alert.alert('login!');
-
-    console.log('login');
-
-    if (TEST_MODE) {
-      this.continueWithProfile(TEST_PROFILE, TEST_TOKEN);
-    } else {
-      var lock = new Auth0Lock({clientId: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', domain: 'analogzen.auth0.com'});
-
-      // todo -- cache login
-
-      lock.show({connections: ['sms']}, (err, profile, token) => {
-        if (err) {
-          Alert.alert('login err :(' + err)
-
-          console.log(err);
-          return;
-        }
-        // Authentication worked!
-        console.log('Logged in with Auth0!: ' + JSON.stringify(profile));
-
-        // https://auth0.com/docs/user-profile/user-profile-structure
-        // phone_number, phone_verified
-
-        this.continueWithProfile(profile, token.idToken);
+    this.setupContactPermission().then(() => {
+      this.login().then((loginResult) => {
+        const resetAction = NavigationActions.reset({
+          index: 0,
+          actions: [
+            NavigationActions.navigate({routeName: 'AddressBook', params: loginResult})
+          ]
+        });
+        this.props.navigation.dispatch(resetAction);
       });
-    }
-
-
-  }
-
-  continueWithProfile (profile, authJwt) {
-    let appId = profile.extraInfo.clientID;
-    let phoneNumber = profile.extraInfo.phone_number;
-
-    let identifier = parsePhoneNumber(phoneNumber);
-
-    const resetAction = NavigationActions.reset({
-      index: 0,
-      actions: [
-        NavigationActions.navigate({routeName: 'AddressBook', params: {appId, identifier, phoneNumber: phoneNumber, authJwt}})
-      ]
     });
-    this.props.navigation.dispatch(resetAction);
-
   }
+
+
+  // resolve if there is permission, ask the first time
+  setupContactPermission () {
+    return new Promise((resolve, reject) => {
+      Contacts.checkPermission((err, permission) => {
+        // Contacts.PERMISSION_AUTHORIZED || Contacts.PERMISSION_UNDEFINED || Contacts.PERMISSION_DENIED
+        if (permission === 'undefined') {
+          Contacts.requestPermission((err, permission) => {
+            if (permission == 'authorized') {
+              resolve();
+            } else {
+              reject();
+            }
+          })
+        }
+        if (permission === 'authorized') {
+          resolve();
+        }
+        if (permission === 'denied') {
+          reject();
+        }
+      })
+    });
+  }
+
+  // login and resolve params: {appId, identifier, authJwt, phoneNumber}
+  login () {
+    return new Promise((resolve, reject) => {
+      console.log('login');
+
+      function continueWithProfile (profile, authJwt) {
+        console.log('contineWithProfile');
+        let appId = profile.extraInfo.clientID;
+        let phoneNumber = profile.extraInfo.phone_number;
+
+        let identifier = parsePhoneNumber(phoneNumber);
+
+        return resolve({appId, identifier, authJwt, phoneNumber});
+      }
+
+      if (TEST_MODE) {
+        return continueWithProfile(TEST_PROFILE, TEST_TOKEN);
+      } else {
+        var lock = new Auth0Lock({clientId: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', domain: 'analogzen.auth0.com'});
+
+        // todo -- cache login
+
+        lock.show({connections: ['sms']}, (err, profile, token) => {
+          if (err) {
+            Alert.alert('login err :(' + err)
+
+            console.log(err);
+            return reject();
+          }
+          // Authentication worked!
+          console.log('Logged in with Auth0!: ' + JSON.stringify(profile));
+
+          // https://auth0.com/docs/user-profile/user-profile-structure
+          // phone_number, phone_verified
+
+          return continueWithProfile(profile, token.idToken);
+        });
+      }
+    });
+  }
+
+
 }
 
 AppRegistry.registerComponent('MainScreen', () => MainScreen);
@@ -228,7 +190,7 @@ class AddressBookScreen extends Component {
       identifier: this.props.navigation.state.params.identifier,
       authJwt: this.props.navigation.state.params.authJwt,
       disabledContactIds: [],
-      matchingContacts: [],
+      matchingContactIds: [],
       shouldSync: true,
       dsRows: dsRows,
       contactsDs: AddressBookScreen.ds.cloneWithRows(dsRows)
@@ -236,9 +198,7 @@ class AddressBookScreen extends Component {
   }
 
   componentWillMount() {
-    this.fetchContacts().done();
-    this.fetchDisabled().done();
-    this.fetchPossibleMatches().done();
+    this.loadContacts();
   }
 
   render() {
@@ -264,7 +224,7 @@ class AddressBookScreen extends Component {
         <View style={{flex: 1, flexDirection: 'column'}}>
           <View style={{flex: 1, flexDirection: 'row'}}>
             <Text style={styles.displayName}>{contact.givenName + ' ' + contact.familyName}</Text>
-            <Text>{this.state.matchingContacts.map(match => match.recordID).indexOf(contact.recordID) > -1 ? ' ** match' : ''}</Text>
+            <Text>{rowData.match ? ' ** match' : ''}</Text>
           </View>
           <View style={{flex: 1, flexDirection: 'column'}}>
             {contact.phoneNumbers.map((p, i) => (
@@ -304,6 +264,10 @@ class AddressBookScreen extends Component {
   }
 
   onSyncPressed() {
+    this.syncContacts();
+  }
+
+  syncContacts () {
     //this.props.navigation.goBack(null);
 
     //let ep = 'https://addressbooklink.com/api';
@@ -350,23 +314,24 @@ class AddressBookScreen extends Component {
 
       response.json().then((json) => {
         var responseBloom = new Filter(json);
-        var matchingContacts = [];
+        var matchingContactIds = [];
 
         contacts.forEach(c => {c.phoneNumbers.forEach(pn => {
           let normalized = parsePhoneNumber(pn.number);
 
           if (responseBloom.contains(normalized)) {
-            matchingContacts.push(c);
-            console.log("matchingContacts: " + JSON.stringify(pn.number));
+            matchingContactIds.push(c.recordID);
+            console.log("matching contact: " + JSON.stringify(pn.number));
           }
         })});
 
-        this.storePossibleMatches({matchingContacts});
+        this.storePossibleMatches(matchingContactIds).then(() => {
+          this.setState({matchingContactIds, shouldSync: false});
 
-        this.setState({matchingContacts, shouldSync: false});
+          this.loadContacts();
 
-        Alert.alert('Contacts synced successfully. Any deselected contacts have been removed.');
-
+          Alert.alert('Contacts synced successfully. Any deselected contacts have been removed.');
+        });
       });
 
 
@@ -374,84 +339,56 @@ class AddressBookScreen extends Component {
     .catch((error) => {
       console.error(error);
     });
-
-
   }
 
   // -- model
 
-  async fetchContacts() {
-    Contacts.getAllWithoutPhotos((err, contacts) => {
-      if (err) {
-        Alert.alert("Error getting contacts.");
-        return;
-      }
-      let dsRows = contacts.map((contact) => new Object({contact, 'key': contact.recordID, selected: true})),
-        contactsDs = AddressBookScreen.ds.cloneWithRows(dsRows);
+  loadContacts() {
+    Promise.all([this.loadDisabled(), this.loadPossibleMatches()])
+      .then(([disabledContactIds, matchingContactIds]) => {
+      Contacts.getAllWithoutPhotos((err, contacts) => {
+        if (err) {
+          Alert.alert("Error getting contacts.");
+          return;
+        }
+        let dsRows = contacts.map((contact) => new Object({
+            contact,
+            key: contact.recordID,
+            selected: disabledContactIds.indexOf(contact.recordID) == -1,
+            match: matchingContactIds.indexOf(contact.recordID) > -1
+          })),
+          contactsDs = AddressBookScreen.ds.cloneWithRows(dsRows);
 
-      this.setState({contacts, contactsDs, dsRows});
+        this.setState({disabledContactIds, matchingContactIds, contacts, contactsDs, dsRows});
+      });
     });
   }
 
-  async fetchDisabled() {
-    try {
-      let disabledContactIdsP = AsyncStorage.getItem(`@AddressBookScreen:${this.state.appId}:${this.state.identifier}:disabledContactIds`)
-        .then((json) => json ? JSON.parse(json) : [])
-        .then((disabledContactIds) => {
-          this.setState({disabledContactIds});
-          return disabledContactIds;
-        });
-
-      return disabledContactIdsP;
-    } catch (error) {
-      Alert.alert('error loading disable contacts: ' + error);
-    }
+  loadDisabled() {
+    return AsyncStorage.getItem(`@AddressBookScreen:${this.state.appId}:${this.state.identifier}:disabledContactIds`)
+      .then((json) => json ? JSON.parse(json) : [])
+      .catch(() => []);
   }
 
-  async fetchPossibleMatches() {
-    try {
-      let disabledContactIdsP = AsyncStorage.getItem(`@AddressBookScreen:${this.state.appId}:${this.state.identifier}:possibleMatches`)
-        .then((json) => json ? JSON.parse(json) : [])
-        .then((matchingContacts) => {
-          this.setState({matchingContacts});
-          return matchingContacts;
-        });
-
-      return disabledContactIdsP;
-    } catch (error) {
-      Alert.alert('error loading disable contacts: ' + error);
-    }
+  loadPossibleMatches() {
+    return AsyncStorage.getItem(`@AddressBookScreen:${this.state.appId}:${this.state.identifier}:possibleMatches`)
+      .then((json) => json ? JSON.parse(json) : [])
+      .catch(() => []);
   }
 
-  async storePossibleMatches (state) {
-    if (!state) {
-      state = this.state;
-    }
-    try {
-      let json = JSON.stringify(state.matchingContacts);
-
-      return AsyncStorage.setItem(`@AddressBookScreen:${state.appId}:${state.identifier}:possibleMatches`, json);
-    } catch (error) {
-      // Error saving data
-      Alert.alert('error storing matching contacts: ' + error);
-    }
+  storePossibleMatches (matchingContactIds) {
+    let json = JSON.stringify(matchingContactIds);
+    return AsyncStorage.setItem(`@AddressBookScreen:${this.state.appId}:${this.state.identifier}:possibleMatches`, json);
   }
 
-  async storeDisabled(disabledContactIds) {
-    try {
-      let json = JSON.stringify(disabledContactIds);
-
-      return AsyncStorage.setItem(`@AddressBookScreen:${this.state.appId}:${this.state.identifier}:disabledContactIds`, json);
-    } catch (error) {
-      // Error saving data
-      console.log('error storing disable contacts: ');
-      console.log(error);
-    }
+  storeDisabled(disabledContactIds) {
+    let json = JSON.stringify(disabledContactIds);
+    return AsyncStorage.setItem(`@AddressBookScreen:${this.state.appId}:${this.state.identifier}:disabledContactIds`, json);
   }
 
   // -- extras
 
-  static ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1 !== r2.selected});
+  static ds = new ListView.DataSource({rowHasChanged: (r1, r2) => r1.selected !== r2.selected || r1.match != r2.match});
 }
 
 AppRegistry.registerComponent('AddressBookScreen', () => AddressBookScreen);
@@ -502,10 +439,8 @@ const styles = StyleSheet.create({
 });
 
 Linking.addEventListener('url', function (event) {
-  console.log('Linking::url');
-  console.log(event);
+  console.log(`Linking::url length: ${event.url.length}`);
 });
-
 
 AppRegistry.registerComponent('AddressBookScreen', () => AddressBookScreen);
 
@@ -516,10 +451,6 @@ const App = StackNavigator({
   AddressBook: {
     path: 'book/:appId/:identifier',
     screen: AddressBookScreen,
-  },
-  Match: {
-    path: 'match/:appId/:identifier',
-    screen: MatchScreen,
   }
   }, {containerOptions: {URIPrefix: 'https://addressbook.link/v0/'}});
 
