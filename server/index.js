@@ -41,6 +41,7 @@ export default function main() {
 
     server.route(PUT_route(pool));
     server.route(GET_route(pool));
+    server.route(CONFIG_route(pool));
     server.route(HEALTH_route(pool));
     server.route(APPLE_SITE_ASSOC_route); // here or in nginx? maybe nginx merges.... neato.
 
@@ -143,10 +144,10 @@ const PUT_route = (pool) => new Object({
 
         let phoneNumber = parsePhoneNumber(extraInfo.phone_number);
 
-        if (identifier != phoneNumber) {
-          console.log('invalid identifier');
-          throw new Error('invalid indentifier');
-        }
+        // if (identifier != phoneNumber) {
+        //   console.log('invalid identifier');
+        //   throw new Error('invalid indentifier');
+        // }
 
         pool.connect(function (err, client, done) {
           if (err) {
@@ -217,13 +218,37 @@ const PUT_route = (pool) => new Object({
   }
 });
 
+
+const CONFIG_route = (pool) => new Object({
+  method: 'GET',
+  path: '/config/{configName}', //'/db/{base}/{identifier}',
+  handler: function (request, reply) {
+    let base = request.params.configName;
+
+    if (base == 'speeddial.io') {
+      return reply({
+        returnTo: ['https://speeddial.io/ablink-result'],
+        authProvider: {
+          type: 'auth0-lock',
+          connection: 'sms',
+          domain: 'analogzen.auth0.com',
+          clientId: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc'}
+        });
+    }
+
+    return reply().code(404);
+  }
+}); // 8kb works...
+
 const GET_route = (pool) => new Object({
   method: 'GET',
-  path: '/db/{base}/{identifier}',
+  path: '/test', //'/db/{base}/{identifier}',
   handler: function (request, reply) {
-    reply('ok');
+    // 5 * 2000 = 10kb
+    reply(`<a href="https://addressbook.link/v0/book/test/1234?data=${'a'.repeat(1 * Math.pow(1024, 2))}">click here 1m</a>`)
+      .header('content-type', 'text/html');
   }
-});
+}); // 8kb works...
 
 
 const HEALTH_route = (pool) => new Object({

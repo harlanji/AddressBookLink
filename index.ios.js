@@ -16,7 +16,8 @@ import {
   Switch,
   AsyncStorage,
   Linking,
-  Navigator
+  Navigator,
+  ActivityIndicator
 } from 'react-native';
 
 import {
@@ -29,7 +30,11 @@ const Filter = require('bloom-filter');
 const Contacts = require('react-native-contacts');
 const Auth0Lock = require('react-native-lock');
 
+const URL = require('url-parse');
+
 const Phone = require('phone');
+
+const API_URI = 'http://192.168.3.3:3000';
 
 function parsePhoneNumber (phoneNumber) {
   let digits = phoneNumber.split('').filter(char => char >= '0' && char <= '9').join('');
@@ -48,9 +53,49 @@ function isSimulator () {
   return DeviceInfo.getModel() === "Simulator";
 }
 
-const TEST_MODE = true;
-const TEST_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FuYWxvZ3plbi5hdXRoMC5jb20vIiwic3ViIjoic21zfDU4ZDAxOTI5ODc5ZjE4Mjg4YTdhMGMwNyIsImF1ZCI6InZrTmZvalB3NVBzNzN2bkdiRDhTMVJ4TGxRTTdhZ0djIiwiZXhwIjoxNDkwMzI3NjIzLCJpYXQiOjE0OTAyOTE2MjN9.iqqf4LkNep57rfbsqoywCYvCuiAWL7tmbxLNjthmdDg';
-const TEST_PROFILE = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155651452'}};
+const TEST_LOGIN = true;
+const TEST_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FuYWxvZ3plbi5hdXRoMC5jb20vIiwic3ViIjoic21zfDU4ZDAxOTI5ODc5ZjE4Mjg4YTdhMGMwNyIsImF1ZCI6InZrTmZvalB3NVBzNzN2bkdiRDhTMVJ4TGxRTTdhZ0djIiwiZXhwIjoxNDkwNDA2MjQxLCJpYXQiOjE0OTAzNzAyNDF9.jorqH_TAbHlB5XAbL3oSfMslpkM0o_7doobtolUc1X4';
+const TEST_PROFILE = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155655555'}};
+
+
+function loadConfig (configName, defaultVal) {
+  return AsyncStorage.getItem(`@Config:${configName}`)
+    .then((returnLinksJson) => {
+      return returnLinksJson ? JSON.parse(returnLinksJson) : defaultVal;
+    })
+    .catch(() => defaultVal);
+}
+
+function storeConfig (configName, config) {
+  return AsyncStorage.setItem(`@Config:${configName}`, JSON.stringify(config));
+}
+
+
+let OPENED_URL = null,
+  OPENED_SITENAME = null,
+  OPENED_RETURNTO = null;
+
+Linking.addEventListener('url', function (event) {
+  console.log('LINK: ' + event.url);
+
+  let OPENED_URL = event.url;
+
+  if (!OPENED_URL) {
+    return;
+  }
+
+  let openedUrl = new URL(OPENED_URL, true);
+
+  let pathComponents = openedUrl.pathname.split('/');
+
+  // FIXME hardcoded... /v0/book/configName
+  if (pathComponents[1] == 'v0' && pathComponents[2] == 'book' && pathComponents[3] && openedUrl.query.returnTo) {
+    OPENED_SITENAME = pathComponents[3];
+    OPENED_RETURNTO = openedUrl.query.returnTo;
+
+    console.log('hacked open...');
+  }
+});
 
 
 class MainScreen extends Component {
@@ -71,16 +116,90 @@ class MainScreen extends Component {
     // }),
   };
 
+  constructor (props) {
+    super(props);
+
+    let navParams = props.navigation.state.params;
+
+    if (!navParams.configName) {
+      throw new Error('missing config name');
+    }
+
+    let returnTo = navParams.returnTo;
+
+    this.state = {
+      configName: navParams.configName,
+      returnTo: navParams.returnTo ? decodeURIComponent(navParams.returnTo) : null,
+      config: null
+    };
+  }
+
+  hack_urlListener = null;
+
+  componentWillMount () {
+    console.log('main will mount');
+
+    fetch(`${API_URI}/config/${this.state.configName}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    }).then((configResponse) => {
+      configResponse.json().then((config) => {
+        this.setState({config});
+      });
+    });
+
+  }
+
+  componentDidMount () {
+
+    // FIXME is there an event we can use?
+    // this.hack_urlListener = setInterval(() => {
+    //   if (OPENED_SITENAME == this.state.configName && OPENED_RETURNTO != this.state.returnTo) {
+    //     try {
+    //       this.setState({returnTo: OPENED_RETURNTO});
+    //     } catch (e) {
+    //       console.log('error hacking returnTo state');
+    //     }
+    //   }
+    //   }, 50);
+
+  }
+
+  componentWillDismont () {
+    //clearInterval(this.hack_urlListener);
+  }
+
   render() {
+
+
+
     return (
       <View style={styles.container}>
         <Text style={styles.welcome}>AddressBook.Link</Text>
         <Text style={styles.instructions}>
           AddressBook.Link helps keep your contacts private and connect you with friends. <Text>Learn More &gt;</Text>
         </Text>
-        <Button title="Enable" style={styles.enable} onPress={() => this.onEnablePressed()}/>
+        <Text>{this.state.configName}</Text>
+        <Text>{this.state.returnTo}</Text>
+        <ActivityIndicator
+          hidesWhenStopped={true}
+          animating={this.isWaitingForConfig()}
+          size="large"/>
+
+        {!this.isWaitingForConfig() &&
+
+        <View>
+          <Button title="Enable" style={styles.enable} onPress={() => this.onEnablePressed()}/>
+        </View>
+        }
       </View>
     );
+  }
+
+  isWaitingForConfig () {
+    return this.state.config == null;
   }
 
   onEnablePressed() {
@@ -88,15 +207,22 @@ class MainScreen extends Component {
   }
 
   gotoAddressBook () {
+    var config = this.state.config;
+
     this.setupContactPermission().then(() => {
       this.login().then((loginResult) => {
-        const resetAction = NavigationActions.reset({
-          index: 0,
-          actions: [
-            NavigationActions.navigate({routeName: 'AddressBook', params: loginResult})
-          ]
+
+        let returnUriAllowed = this.state.returnTo && config.returnTo.filter((allowedReturnTo) => this.state.returnTo.indexOf(allowedReturnTo) == 0).length > 0;
+        let returnToUri = returnUriAllowed ? this.state.returnTo : null;
+
+        console.log(`gotoAddressBook with returnTo: ${returnToUri}`);
+
+        const resetAction = NavigationActions.navigate({
+          routeName: 'AddressBook',
+          params: {returnToUri , ...loginResult}
         });
         this.props.navigation.dispatch(resetAction);
+
       });
     });
   }
@@ -132,7 +258,8 @@ class MainScreen extends Component {
       console.log('login');
 
       function continueWithProfile (profile, authJwt) {
-        console.log('contineWithProfile');
+        console.log(`contineWithProfile. token=${authJwt}`);
+
         let appId = profile.extraInfo.clientID;
         let phoneNumber = profile.extraInfo.phone_number;
 
@@ -141,28 +268,42 @@ class MainScreen extends Component {
         return resolve({appId, identifier, authJwt, phoneNumber});
       }
 
-      if (TEST_MODE) {
+      if (TEST_LOGIN) {
         return continueWithProfile(TEST_PROFILE, TEST_TOKEN);
       } else {
-        var lock = new Auth0Lock({clientId: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', domain: 'analogzen.auth0.com'});
+        const NOW = new Date().getTime();
 
-        // todo -- cache login
+        loadConfig(`login:${this.state.configName}`)
+          .then((loginConfig => {
 
-        lock.show({connections: ['sms']}, (err, profile, token) => {
-          if (err) {
-            Alert.alert('login err :(' + err)
+            if (loginConfig && loginConfig.exp >= NOW) {
+              return continueWithProfile(loginConfig.profile, loginConfig.token.idToken);
+            }
 
-            console.log(err);
-            return reject();
-          }
-          // Authentication worked!
-          console.log('Logged in with Auth0!: ' + JSON.stringify(profile));
+            loginConfig = {exp: NOW + 10*60*60*1000};
 
-          // https://auth0.com/docs/user-profile/user-profile-structure
-          // phone_number, phone_verified
+            var lock = new Auth0Lock({clientId: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', domain: 'analogzen.auth0.com'});
 
-          return continueWithProfile(profile, token.idToken);
-        });
+            lock.show({connections: ['sms']}, (err, profile, token) => {
+              if (err) {
+                //Alert.alert('login err :(' + err)
+
+                console.log(err);
+                return reject();
+              }
+              // Authentication worked!
+              console.log('Logged in with Auth0!: ' + JSON.stringify(profile));
+
+              // https://auth0.com/docs/user-profile/user-profile-structure
+              // phone_number, phone_verified
+
+              Object.assign(loginConfig, {profile, token});
+
+              storeConfig(`login:${this.state.configName}`, loginConfig);
+
+              return continueWithProfile(profile, token.idToken);
+            });
+          }));
       }
     });
   }
@@ -171,6 +312,7 @@ class MainScreen extends Component {
 }
 
 AppRegistry.registerComponent('MainScreen', () => MainScreen);
+
 
 
 class AddressBookScreen extends Component {
@@ -189,6 +331,7 @@ class AddressBookScreen extends Component {
       phoneNumber: this.props.navigation.state.params.phoneNumber,
       identifier: this.props.navigation.state.params.identifier,
       authJwt: this.props.navigation.state.params.authJwt,
+      returnToUri: this.props.navigation.state.params.returnToUri,
       disabledContactIds: [],
       matchingContactIds: [],
       shouldSync: true,
@@ -196,6 +339,7 @@ class AddressBookScreen extends Component {
       contactsDs: AddressBookScreen.ds.cloneWithRows(dsRows)
     };
   }
+
 
   componentWillMount() {
     this.loadContacts();
@@ -207,6 +351,8 @@ class AddressBookScreen extends Component {
         <ListView dataSource={this.state.contactsDs}
                   renderRow={(rowData) => this.renderContactRow(rowData)}
                   enableEmptySections={true}/>
+        <Text>{this.state.initialUrl}</Text>
+        <Text>{this.state.returnToUri}</Text>
         <View style={styles.syncPanel}>
           <Button style={styles.syncButton} title="Sync" onPress={() => this.onSyncPressed() }/>
         </View>
@@ -271,15 +417,17 @@ class AddressBookScreen extends Component {
     //this.props.navigation.goBack(null);
 
     //let ep = 'https://addressbooklink.com/api';
-    let ep = 'http://192.168.3.3:3000';
 
     //let phone = '5554787672'; // Daniel
     let identifier = this.state.identifier;
     let appId = this.state.appId;
-    let uri = `${ep}/db/${appId}/${identifier}`;
+    let uri = `${API_URI}/db/${appId}/${identifier}`;
 
+
+    let returnToUri = this.state.returnToUri;
 
     console.log('sync uri: ' + uri);
+    console.log('return to uri: ' + returnToUri);
 
     let contacts = this.state.contacts;
 
@@ -312,6 +460,8 @@ class AddressBookScreen extends Component {
       body: JSON.stringify({contactsHash, authJwt})
     }).then((response) => {
 
+      let matchingContacts = [];
+
       response.json().then((json) => {
         var responseBloom = new Filter(json);
         var matchingContactIds = [];
@@ -320,8 +470,10 @@ class AddressBookScreen extends Component {
           let normalized = parsePhoneNumber(pn.number);
 
           if (responseBloom.contains(normalized)) {
-            matchingContactIds.push(c.recordID);
             console.log("matching contact: " + JSON.stringify(pn.number));
+            matchingContactIds.push(c.recordID);
+            matchingContacts.push({selected: true, contact: {name: c.givenName, phoneNumber: normalized}});
+
           }
         })});
 
@@ -330,7 +482,11 @@ class AddressBookScreen extends Component {
 
           this.loadContacts();
 
-          Alert.alert('Contacts synced successfully. Any deselected contacts have been removed.');
+          if (returnToUri) {
+            Linking.openURL(`${returnToUri}?contacts=${encodeURIComponent(JSON.stringify(matchingContacts))}`);
+          } else {
+            Alert.alert('Contacts synced successfully. Any deselected contacts have been removed.');
+          }
         });
       });
 
@@ -438,21 +594,26 @@ const styles = StyleSheet.create({
   }
 });
 
-Linking.addEventListener('url', function (event) {
-  console.log(`Linking::url length: ${event.url.length}`);
-});
-
 AppRegistry.registerComponent('AddressBookScreen', () => AddressBookScreen);
 
 const App = StackNavigator({
-  Main: {
+  ABLink: {
+    path: 'book/:configName\?returnTo=:returnTo',
     screen: MainScreen,
   },
+  // ABLink: {
+  //   path: 'book/:configName',
+  //   screen: MainScreen,
+  // },
   AddressBook: {
-    path: 'book/:appId/:identifier',
+    path: 'loggedin/:configName/:returnToUri',
     screen: AddressBookScreen,
   }
-  }, {containerOptions: {URIPrefix: 'https://addressbook.link/v0/'}});
+  }, {
+  initialRouteName: 'ABLink',
+  initialRouteParams: {configName: 'speeddial.io', initialRoute: true},
+    containerOptions: {URIPrefix: 'https://addressbook.link/v0/'
+    }});
 
 AppRegistry.registerComponent('AddressBookLink', () => App);
 
