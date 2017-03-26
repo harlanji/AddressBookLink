@@ -53,7 +53,7 @@ function isSimulator () {
   return DeviceInfo.getModel() === "Simulator";
 }
 
-const TEST_LOGIN = true;
+const TEST_LOGIN = false;
 const TEST_TOKEN = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJodHRwczovL2FuYWxvZ3plbi5hdXRoMC5jb20vIiwic3ViIjoic21zfDU4ZDAxOTI5ODc5ZjE4Mjg4YTdhMGMwNyIsImF1ZCI6InZrTmZvalB3NVBzNzN2bkdiRDhTMVJ4TGxRTTdhZ0djIiwiZXhwIjoxNDkwNDA2MjQxLCJpYXQiOjE0OTAzNzAyNDF9.jorqH_TAbHlB5XAbL3oSfMslpkM0o_7doobtolUc1X4';
 const TEST_PROFILE = {extraInfo: {clientID: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', phone_number: '+14155655555'}};
 
@@ -282,7 +282,7 @@ class MainScreen extends Component {
 
             loginConfig = {exp: NOW + 10*60*60*1000};
 
-            var lock = new Auth0Lock({clientId: 'vkNfojPw5Ps73vnGbD8S1RxLlQM7agGc', domain: 'analogzen.auth0.com'});
+            var lock = new Auth0Lock({clientId: loginConfig.clientId, loginConfig.domain});
 
             lock.show({connections: ['sms']}, (err, profile, token) => {
               if (err) {
@@ -399,7 +399,7 @@ class AddressBookScreen extends Component {
     }
 
     var contactsDs = AddressBookScreen.ds.cloneWithRows(this.state.dsRows);
-    this.setState({dsRows: this.state.dsRows, contactsDs, shouldSync: true});
+    this.setState({disabledContactIds, dsRows: this.state.dsRows, contactsDs, shouldSync: true});
 
     console.log('storeDisabled');
     console.log(disabledContactIds);
@@ -429,14 +429,11 @@ class AddressBookScreen extends Component {
     console.log('sync uri: ' + uri);
     console.log('return to uri: ' + returnToUri);
 
-    let contacts = this.state.contacts;
-
-
-
+    let contacts = this.state.contacts.filter(c => this.state.disabledContactIds.indexOf(c.recordID) == -1)
 
     let phoneNumbers = [];
 
-    contacts.filter(c => this.state.disabledContactIds.indexOf(c.recordID) == -1).forEach(c => {c.phoneNumbers.forEach(pn => {
+    contacts.forEach(c => {c.phoneNumbers.forEach(pn => {
       let normalized = parsePhoneNumber(pn.number);
       phoneNumbers.push(normalized);
     })});
@@ -467,14 +464,20 @@ class AddressBookScreen extends Component {
         var matchingContactIds = [];
 
         contacts.forEach(c => {c.phoneNumbers.forEach(pn => {
+
+
+
           let normalized = parsePhoneNumber(pn.number);
+
+          let contact = {name: c.givenName, phoneNumber: normalized};
 
           if (responseBloom.contains(normalized)) {
             console.log("matching contact: " + JSON.stringify(pn.number));
             matchingContactIds.push(c.recordID);
-            matchingContacts.push({selected: true, contact: {name: c.givenName, phoneNumber: normalized}});
 
+            contact.match = 1;
           }
+          matchingContacts.push(contact);
         })});
 
         this.storePossibleMatches(matchingContactIds).then(() => {
