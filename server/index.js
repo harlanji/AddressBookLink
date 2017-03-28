@@ -7,8 +7,11 @@ const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const Phone = require('phone');
 
-const AUTH0_CLIENT_SECRET = 'Ytd8voy4YV16UQQvv7-IMxlaSKSZybmAymQHOqmdcoUdV1w8qgsQXPUHU9jSE3qj';
+const AUTH0_CLIENT_SECRET = process.env.AUTH0_CLIENT_SECRET;
 
+if (!AUTH0_CLIENT_SECRET) {
+  throw new Error('provide AUTH0_CLIENT_SECRET env var');
+}
 
 // iOS isn't Node friendly but we want to share the code...
 //const bloomFilterJs = fs.readFileSync('./lib/bloom-filter.js','utf8');
