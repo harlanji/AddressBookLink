@@ -4,7 +4,7 @@ AddressBookLink is a companion application to give you control of your address b
 
 It offers integration based on URLs for applications to request portions of address book functionality.
 
-See more at https://addressbook.link.
+See more at https://addressbook.link or [private-contact-matching](https://github.com/harlanji/private-contact-matching) for technical details.
 
 ## Usage
 
